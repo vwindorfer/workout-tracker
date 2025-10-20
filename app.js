@@ -38,7 +38,7 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     try {
       const r = await fetch(e.request);
-      const c = await caches.open('wt-cache-v2');
+      const c = await caches.open('wt-cache-v3');
       c.put(e.request, r.clone());
       return r;
     } catch {
@@ -630,7 +630,7 @@ function Dashboard({ workouts, types, onBack }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#cbd5e1' }} interval={0} angle={-20} height={60} />
                 <YAxis tick={{ fontSize: 12, fill: '#cbd5e1' }} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid '#334155', color: '#e2e8f0' }} />
+                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0' }} />
                 <Legend />
                 <Bar dataKey="volume" name="Total Volume (kg)" fill="#22c55e" />
               </BarChart>
