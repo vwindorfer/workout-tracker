@@ -1,8 +1,6 @@
-// Use UMD globals from the scripts loaded in index.html
+// Use the UMD globals that index.html loads
 const { useEffect, useMemo, useState } = React;
-const {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
-} = Recharts; // <- NOT window.Recharts
+const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
 
 // ==========================
 // iPhone Workout Tracker (PWA)
@@ -14,7 +12,7 @@ const {
 
 const API = "https://YOUR-VERCEL-APP.vercel.app"; // <-- replace after you deploy the backend
 
-export default function App() {
+function App() {
   // PWA bootstrap
   useEffect(() => {
     const manifest = {
