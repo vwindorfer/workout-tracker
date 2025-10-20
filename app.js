@@ -38,7 +38,7 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     try {
       const r = await fetch(e.request);
-      const c = await caches.open('wt-cache-v1');
+      const c = await caches.open('wt-cache-v2');
       c.put(e.request, r.clone());
       return r;
     } catch {
@@ -827,6 +827,6 @@ async function cloudSync(workouts, types) {
   alert("Synced to Cloud ✅");
 }
 
-// Mount
+// ---- Mount the app into #root ----
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
