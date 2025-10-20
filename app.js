@@ -1,5 +1,8 @@
+// Use UMD globals from the scripts loaded in index.html
 const { useEffect, useMemo, useState } = React;
-const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
+const {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} = Recharts; // <- NOT window.Recharts
 
 // ==========================
 // iPhone Workout Tracker (PWA)
