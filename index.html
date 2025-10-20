@@ -5,23 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Workout Tracker</title>
 
-    <!-- Tailwind utilities -->
+    <!-- Tailwind (utility CSS) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- React 18 UMD globals -->
+    <!-- React 18 UMD -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- IMPORTANT: PropTypes must be loaded BEFORE Recharts -->
+    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
 
     <!-- Recharts UMD (version pinned) -->
     <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
 
-    <!-- Babel Standalone (so the browser can compile JSX) -->
+    <!-- Babel Standalone so the browser can compile JSX in app.js -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   </head>
   <body class="bg-slate-900">
     <div id="root"></div>
 
-    <!-- Your app. IMPORTANT: use text/babel and presets -->
+    <!-- Run your JSX app file through Babel -->
     <script type="text/babel" data-presets="env,react" src="./app.js"></script>
   </body>
 </html>
