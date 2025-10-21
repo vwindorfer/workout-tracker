@@ -1,7 +1,6 @@
+// Use UMD globals provided by index.html
 const { useEffect, useMemo, useState } = React;
-const {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
-} = Recharts;
+const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
 
 // ==========================
 // iPhone Workout Tracker (PWA)
@@ -10,7 +9,7 @@ const {
 // - Data stored locally in localStorage
 // ==========================
 
-export default function App() {
+function App() {
   // ------------------ PWA bootstrap ------------------
   useEffect(() => {
     // Inject a minimal Web App Manifest so iOS/Android can "Add to Home Screen"
@@ -214,7 +213,7 @@ function BottomNav({ current, onNavigate }) {
     { key: "types", label: "Types" },
   ];
   return (
-    <nav className=\"fixed bottom-0 inset-x-0 bg-white/90 border-t border-slate-200 backdrop-blur z-40\">
+    <nav className="fixed bottom-0 inset-x-0 bg-white/90 border-t border-slate-200 backdrop-blur z-40">
       <div className="max-w-3xl mx-auto grid grid-cols-5">
         {items.map((it) => (
           <button
@@ -823,5 +822,6 @@ function isoLocal(iso) {
 
 /** @typedef {"home"|"add"|"edit"|"list"|"types"|"dashboard"} Route */
 
+// ---- Mount the app into #root ----
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
