@@ -32,7 +32,7 @@ function App() {
     document.head.appendChild(link);
 
     // Register a tiny Service Worker for offline caching
-    const swCode = `self.addEventListener('install', e => {self.skipWaiting();}); self.addEventListener('activate', e => {clients.claim();}); self.addEventListener('fetch', e => { e.respondWith((async()=>{ try{ const r=await fetch(e.request); const c=await caches.open('wt-cache-v1'); c.put(e.request, r.clone()); return r; }catch{ const m=await caches.match(e.request); if(m) return m; return new Response('Offline',{status:503}); } })());});`;
+    const swCode = `self.addEventListener('install', e => {self.skipWaiting();}); self.addEventListener('activate', e => {clients.claim();}); self.addEventListener('fetch', e => { e.respondWith((async()=>{ try{ const r=await fetch(e.request); const c=await caches.open('wt-cache-v3'); c.put(e.request, r.clone()); return r; }catch{ const m=await caches.match(e.request); if(m) return m; return new Response('Offline',{status:503}); } })());});`;
     if ("serviceWorker" in navigator) {
       const swBlob = new Blob([swCode], { type: "text/javascript" });
       const swUrl = URL.createObjectURL(swBlob);
@@ -345,7 +345,7 @@ function AddEditWorkout({ types, lastWorkout, existing = null, onCancel, onSave 
 
   function handleSave() {
     if (!exercises.length) return alert("Add at least one exercise");
-    const hasInvalid = exercises.some((e) => !e.typeId || e.weight <= 0 || e.reps <= 0 || e.sets <= 0);
+    const hasInvalid = exercises.some((e) => !e.typeId || e.weight <= 0 || e.reps <= 0);
     if (hasInvalid) return alert("Please fill out all exercise fields with positive numbers.");
 
     const workout = /** @type {Workout} */ ({
