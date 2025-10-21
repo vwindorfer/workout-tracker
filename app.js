@@ -1,20 +1,19 @@
-// Use the UMD globals that index.html loads
 const { useEffect, useMemo, useState } = React;
-const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
+const {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} = Recharts;
 
 // ==========================
 // iPhone Workout Tracker (PWA)
-// - Add to Home Screen
-// - Offline cache via tiny Service Worker
-// - Local cache via localStorage
-// - Optional cloud sync via Vercel + private GitHub repo
+// - Installable on iOS via "Add to Home Screen"
+// - Offline-ready via on-the-fly Service Worker registration
+// - Data stored locally in localStorage
 // ==========================
 
-const API = "https://YOUR-VERCEL-APP.vercel.app"; // <-- replace after you deploy the backend
-
-function App() {
-  // PWA bootstrap
+export default function App() {
+  // ------------------ PWA bootstrap ------------------
   useEffect(() => {
+    // Inject a minimal Web App Manifest so iOS/Android can "Add to Home Screen"
     const manifest = {
       name: "Workout Tracker",
       short_name: "Workouts",
@@ -33,22 +32,8 @@ function App() {
     link.href = url;
     document.head.appendChild(link);
 
-    const swCode = `self.addEventListener('install', e => {self.skipWaiting();});
-self.addEventListener('activate', e => {clients.claim();});
-self.addEventListener('fetch', e => {
-  e.respondWith((async () => {
-    try {
-      const r = await fetch(e.request);
-      const c = await caches.open('wt-cache-v3');
-      c.put(e.request, r.clone());
-      return r;
-    } catch {
-      const m = await caches.match(e.request);
-      if (m) return m;
-      return new Response('Offline', { status: 503 });
-    }
-  })());
-});`;
+    // Register a tiny Service Worker for offline caching
+    const swCode = `self.addEventListener('install', e => {self.skipWaiting();}); self.addEventListener('activate', e => {clients.claim();}); self.addEventListener('fetch', e => { e.respondWith((async()=>{ try{ const r=await fetch(e.request); const c=await caches.open('wt-cache-v1'); c.put(e.request, r.clone()); return r; }catch{ const m=await caches.match(e.request); if(m) return m; return new Response('Offline',{status:503}); } })());});`;
     if ("serviceWorker" in navigator) {
       const swBlob = new Blob([swCode], { type: "text/javascript" });
       const swUrl = URL.createObjectURL(swBlob);
@@ -64,52 +49,63 @@ self.addEventListener('fetch', e => {
   // ------------------ Data model ------------------
   const [workoutTypes, setWorkoutTypes] = useLocalStorage(
     "wt_types",
-    [
+    /** @type {WorkoutType[]} */ ([
       { id: uid(), name: "Bench Press", muscleGroup: "Chest" },
       { id: uid(), name: "Lat Pulldown", muscleGroup: "Back" },
       { id: uid(), name: "Squat", muscleGroup: "Legs" },
       { id: uid(), name: "Deadlift", muscleGroup: "Back" },
       { id: uid(), name: "Overhead Press", muscleGroup: "Shoulders" },
-    ]
+    ])
   );
 
-  const [workouts, setWorkouts] = useLocalStorage("wt_workouts", []);
-  const [route, setRoute] = useState("home"); // "home"|"add"|"edit"|"list"|"types"|"dashboard"|"settings"
+  const [workouts, setWorkouts] = useLocalStorage("wt_workouts", /** @type {Workout[]} */ ([]));
+
+  // Simple router (no external deps)
+  const [route, setRoute] = useState(/** @type {Route} */ ("home"));
   const [editingWorkoutId, setEditingWorkoutId] = useState(null);
 
-  const lastWorkout = useMemo(
-    () => (workouts.length ? [...workouts].sort((a,b)=>new Date(b.date)-new Date(a.date))[0] : null),
-    [workouts]
-  );
+  const lastWorkout = useMemo(() => (workouts.length ? workouts.slice().sort((a,b)=>new Date(b.date)-new Date(a.date))[0] : null), [workouts]);
 
-  function go(to) {
+  // ------------------ Navigation helpers ------------------
+  function go(to/** @type {Route} */) {
     setRoute(to);
     if (to !== "edit") setEditingWorkoutId(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function saveWorkout(w) {
-    setWorkouts(prev => {
-      const exists = prev.find(x => x.id === w.id);
-      return exists ? prev.map(x => x.id === w.id ? { ...w } : x) : [...prev, { ...w }];
+  // ------------------ CRUD helpers ------------------
+  function saveWorkout(w /** @type {Workout} */) {
+    setWorkouts((prev) => {
+      const existing = prev.find((x) => x.id === w.id);
+      if (existing) {
+        return prev.map((x) => (x.id === w.id ? { ...w } : x));
+      }
+      return [...prev, { ...w }];
     });
     go("home");
   }
 
   function deleteWorkout(id) {
     if (!confirm("Delete this workout?")) return;
-    setWorkouts(prev => prev.filter(w => w.id !== id));
+    setWorkouts((prev) => prev.filter((w) => w.id !== id));
   }
 
-  function addType(newType) { setWorkoutTypes(prev => [...prev, newType]); }
-  function updateType(updated) { setWorkoutTypes(prev => prev.map(t => t.id === updated.id ? updated : t)); }
+  function addType(newType/** @type {WorkoutType} */) {
+    setWorkoutTypes((prev) => [...prev, newType]);
+  }
+
+  function updateType(updated/** @type {WorkoutType} */) {
+    setWorkoutTypes((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }
+
   function deleteType(id) {
     if (!confirm("Delete this exercise type? (won't remove past workouts)")) return;
-    setWorkoutTypes(prev => prev.filter(t => t.id !== id));
+    setWorkoutTypes((prev) => prev.filter((t) => t.id !== id));
   }
 
+  // ------------------ Render ------------------
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 pb-28">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-emerald-50 text-slate-800 pb-28">
       <TopBar onNavigate={go} />
 
       {route === "home" && (
@@ -129,7 +125,7 @@ self.addEventListener('fetch', e => {
             {lastWorkout ? (
               <WorkoutSummary workout={lastWorkout} types={workoutTypes} onEdit={() => { setEditingWorkoutId(lastWorkout.id); setRoute("edit"); }} />
             ) : (
-              <p className="text-slate-300">No workouts yet. Tap <span className="font-semibold">Add New Workout</span> to get started.</p>
+              <p className="text-slate-500">No workouts yet. Tap <span className="font-semibold">Add New Workout</span> to get started.</p>
             )}
           </SectionCard>
 
@@ -139,10 +135,7 @@ self.addEventListener('fetch', e => {
                 <h2 className="text-lg font-medium">Dashboard</h2>
                 <p className="text-slate-300 text-sm">See your progress and training volume over time.</p>
               </div>
-              <div className="flex gap-2">
-                <SecondaryButton onClick={() => go("dashboard")}>Open Dashboard</SecondaryButton>
-                <SecondaryButton onClick={() => go("settings")}>Settings</SecondaryButton>
-              </div>
+              <SecondaryButton onClick={() => go("dashboard")}>Open Dashboard</SecondaryButton>
             </div>
           </SectionCard>
         </div>
@@ -154,7 +147,7 @@ self.addEventListener('fetch', e => {
           types={workoutTypes}
           lastWorkout={lastWorkout}
           onCancel={() => go("home")}
-          onSave={w => saveWorkout(w)}
+          onSave={(w) => saveWorkout(w)}
         />
       )}
 
@@ -163,9 +156,9 @@ self.addEventListener('fetch', e => {
           key={editingWorkoutId}
           types={workoutTypes}
           lastWorkout={lastWorkout}
-          existing={workouts.find(w => w.id === editingWorkoutId) || null}
+          existing={workouts.find((w) => w.id === editingWorkoutId) || null}
           onCancel={() => go("home")}
-          onSave={w => saveWorkout(w)}
+          onSave={(w) => saveWorkout(w)}
         />
       )}
 
@@ -173,8 +166,8 @@ self.addEventListener('fetch', e => {
         <WorkoutsTable
           workouts={workouts}
           types={workoutTypes}
-          onEdit={id => { setEditingWorkoutId(id); setRoute("edit"); }}
-          onDelete={id => deleteWorkout(id)}
+          onEdit={(id) => { setEditingWorkoutId(id); setRoute("edit"); }}
+          onDelete={(id) => deleteWorkout(id)}
         />
       )}
 
@@ -186,16 +179,6 @@ self.addEventListener('fetch', e => {
         <Dashboard workouts={workouts} types={workoutTypes} onBack={() => go("home")} />
       )}
 
-      {route === "settings" && (
-        <Settings
-          onBack={() => go("home")}
-          workouts={workouts}
-          workoutTypes={workoutTypes}
-          setWorkouts={setWorkouts}
-          setWorkoutTypes={setWorkoutTypes}
-        />
-      )}
-
       <BottomNav current={route} onNavigate={go} />
     </div>
   );
@@ -205,7 +188,7 @@ self.addEventListener('fetch', e => {
 
 function TopBar({ onNavigate }) {
   return (
-    <div className="sticky top-0 z-30 backdrop-blur bg-slate-900/70 border-b border-slate-800">
+    <div className="sticky top-0 z-30 backdrop-blur bg-white/80 border-b border-slate-200 shadow-sm">
       <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-sky-500 text-slate-900 font-black">WT</span>
@@ -216,7 +199,6 @@ function TopBar({ onNavigate }) {
           <SecondaryButton onClick={() => onNavigate("list")}>Workouts</SecondaryButton>
           <SecondaryButton onClick={() => onNavigate("dashboard")}>Dashboard</SecondaryButton>
           <SecondaryButton onClick={() => onNavigate("types")}>Types</SecondaryButton>
-          <SecondaryButton onClick={() => onNavigate("settings")}>Settings</SecondaryButton>
         </div>
       </div>
     </div>
@@ -229,16 +211,16 @@ function BottomNav({ current, onNavigate }) {
     { key: "add", label: "Add" },
     { key: "list", label: "Workouts" },
     { key: "dashboard", label: "Dashboard" },
-    { key: "settings", label: "Settings" },
+    { key: "types", label: "Types" },
   ];
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-slate-900/90 border-t border-slate-800 backdrop-blur z-40">
+    <nav className=\"fixed bottom-0 inset-x-0 bg-white/90 border-t border-slate-200 backdrop-blur z-40\">
       <div className="max-w-3xl mx-auto grid grid-cols-5">
-        {items.map(it => (
+        {items.map((it) => (
           <button
             key={it.key}
             onClick={() => onNavigate(it.key)}
-            className={`py-3 text-xs ${current === it.key ? "text-sky-400" : "text-slate-300"}`}
+            className={`py-3 text-xs ${current === it.key ? "text-sky-600" : "text-slate-300"}`}
           >
             {it.label}
           </button>
@@ -250,7 +232,7 @@ function BottomNav({ current, onNavigate }) {
 
 function SectionCard({ children }) {
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 shadow">
+    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg">
       {children}
     </div>
   );
@@ -258,73 +240,64 @@ function SectionCard({ children }) {
 
 function PrimaryButton({ children, ...props }) {
   return (
-    <button {...props} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-900 font-semibold active:scale-[.98]">
-      {children}
-    </button>
-  );
-}
-function SecondaryButton({ children, ...props }) {
-  return (
-    <button {...props} className="px-4 py-2 rounded-xl bg-slate-700 text-slate-100 font-medium active:scale-[.98]">
-      {children}
-    </button>
-  );
-}
-function GhostButton({ children, ...props }) {
-  return (
-    <button {...props} className="px-3 py-2 rounded-xl border border-slate-700 bg-transparent text-slate-200 active:scale-[.98]">
+    <button {...props} className="px-4 py-2 rounded-2xl bg-amber-500 text-white font-semibold active:scale-[.98]">
       {children}
     </button>
   );
 }
 
-// ——— Inputs (larger tap targets: fixes overlap on iOS)
+function SecondaryButton({ children, ...props }) {
+  return (
+    <button {...props} className="px-4 py-2 rounded-2xl bg-slate-200 text-slate-800 font-medium active:scale-[.98]">
+      {children}
+    </button>
+  );
+}
+
+function GhostButton({ children, ...props }) {
+  return (
+    <button {...props} className="px-3 py-2 rounded-2xl border border-slate-300 bg-transparent text-slate-700 active:scale-[.98]">
+      {children}
+    </button>
+  );
+}
+
 function Input({ label, ...props }) {
   return (
     <label className="grid gap-1">
-      <span className="text-sm text-slate-300 leading-5">{label}</span>
-      <input
-        {...props}
-        className="px-3 py-3 rounded-2xl bg-slate-800 border border-slate-700
-                   focus:outline-none focus:ring-2 focus:ring-sky-500
-                   text-base leading-6 min-h-[44px] w-full appearance-none"
-      />
+      <span className="text-sm text-slate-600">{label}</span>
+      <input {...props} className="px-4 py-3 rounded-2xl bg-white border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 min-h-[44px]" />
     </label>
   );
 }
+
 function Select({ label, children, ...props }) {
   return (
     <label className="grid gap-1">
-      <span className="text-sm text-slate-300 leading-5">{label}</span>
-      <select
-        {...props}
-        className="px-3 py-3 rounded-2xl bg-slate-800 border border-slate-700
-                   focus:outline-none focus:ring-2 focus:ring-sky-500
-                   text-base leading-6 min-h-[44px] w-full appearance-none"
-      >
+      <span className="text-sm text-slate-600">{label}</span>
+      <select {...props} className="px-4 py-3 rounded-2xl bg-white border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 min-h-[44px]">
         {children}
       </select>
     </label>
   );
 }
+
 function TextArea({ label, ...props }) {
   return (
     <label className="grid gap-1">
-      <span className="text-sm text-slate-300 leading-5">{label}</span>
-      <textarea
-        {...props}
-        className="px-3 py-3 rounded-2xl bg-slate-800 border border-slate-700
-                   focus:outline-none focus:ring-2 focus:ring-sky-500
-                   text-base leading-6 min-h-[80px] w-full"
-      />
+      <span className="text-sm text-slate-600">{label}</span>
+      <textarea {...props} className="px-4 py-3 rounded-2xl bg-white border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 min-h-[80px]" />
     </label>
   );
 }
 
 // ------------- Home Summary -------------
 function WorkoutSummary({ workout, types, onEdit }) {
-  const items = workout.exercises.map(e => ({ ...e, name: types.find(t => t.id === e.typeId)?.name || "(deleted)" }));
-  const totalVolume = items.reduce((acc, e) => acc + (e.weight * e.reps * e.sets), 0);
+  const items = workout.exercises.map((e) => ({
+    ...e,
+    name: types.find((t) => t.id === e.typeId)?.name || "(deleted)",
+  }));
+  const totalVolume = items.reduce((acc, e) => acc + (e.weight * e.reps), 0);
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
@@ -335,10 +308,10 @@ function WorkoutSummary({ workout, types, onEdit }) {
         <GhostButton onClick={onEdit}>Edit</GhostButton>
       </div>
       <div className="grid gap-2">
-        {items.slice(0, 5).map(e => (
+        {items.slice(0, 5).map((e) => (
           <div key={e.id} className="flex items-center justify-between text-sm bg-slate-800/60 px-3 py-2 rounded-xl border border-slate-700">
             <span className="truncate mr-2">{e.name}</span>
-            <span>{e.sets}×{e.reps} @ {e.weight} kg</span>
+            <span>{e.reps} reps @ {e.weight} kg</span>
           </div>
         ))}
         {items.length > 5 && <span className="text-xs text-slate-400">+{items.length - 5} more…</span>}
@@ -356,20 +329,32 @@ function AddEditWorkout({ types, lastWorkout, existing = null, onCancel, onSave 
 
   function addRow(templateFromLast = false) {
     if (templateFromLast && lastWorkout) {
-      const copies = lastWorkout.exercises.map(e => ({ id: uid(), typeId: e.typeId, weight: e.weight, reps: e.reps, sets: e.sets }));
-      setExercises(prev => [...prev, ...copies]);
+      const copies = lastWorkout.exercises.map((e) => ({ id: uid(), typeId: e.typeId, weight: e.weight, reps: e.reps }));
+      setExercises((prev) => [...prev, ...copies]);
     } else {
-      setExercises(prev => [...prev, blankExercise(types)]);
+      setExercises((prev) => [...prev, blankExercise(types)]);
     }
   }
-  function removeRow(id) { setExercises(prev => prev.filter(x => x.id !== id)); }
-  function updateRow(id, patch) { setExercises(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x)); }
+
+  function removeRow(id) {
+    setExercises((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  function updateRow(id, patch) {
+    setExercises((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }
 
   function handleSave() {
     if (!exercises.length) return alert("Add at least one exercise");
-    const hasInvalid = exercises.some(e => !e.typeId || e.weight <= 0 || e.reps <= 0 || e.sets <= 0);
+    const hasInvalid = exercises.some((e) => !e.typeId || e.weight <= 0 || e.reps <= 0 || e.sets <= 0);
     if (hasInvalid) return alert("Please fill out all exercise fields with positive numbers.");
-    const workout = { id: existing?.id || uid(), date: new Date(date).toISOString(), notes, exercises };
+
+    const workout = /** @type {Workout} */ ({
+      id: existing?.id || uid(),
+      date: new Date(date).toISOString(),
+      notes,
+      exercises,
+    });
     onSave(workout);
   }
 
@@ -387,8 +372,8 @@ function AddEditWorkout({ types, lastWorkout, existing = null, onCancel, onSave 
 
       <SectionCard>
         <div className="grid gap-3">
-          <Input type="datetime-local" label="Date & Time" value={date} onChange={e => setDate(e.target.value)} />
-          <TextArea label="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
+          <Input type="datetime-local" label="Date & Time" value={date} onChange={(e) => setDate(e.target.value)} />
+          <TextArea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
         </div>
       </SectionCard>
 
@@ -402,15 +387,17 @@ function AddEditWorkout({ types, lastWorkout, existing = null, onCancel, onSave 
         </div>
 
         <div className="grid gap-3">
-          {exercises.map(ex => (
-            <div key={ex.id} className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-start bg-slate-800/60 border border-slate-700 rounded-2xl p-3">
-              <Select label="Type" value={ex.typeId} onChange={e => updateRow(ex.id, { typeId: e.target.value })}>
+          {exercises.map((ex) => (
+            <div key={ex.id} className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-start bg-white/60 border border-slate-200 rounded-2xl p-3">
+              <Select label="Type" value={ex.typeId} onChange={(e) => updateRow(ex.id, { typeId: e.target.value })}>
                 <option value="" disabled>Select type…</option>
-                {types.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {types.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
               </Select>
-              <Input label="Weight (kg)" type="number" min={0} inputMode="decimal" value={ex.weight} onChange={e => updateRow(ex.id, { weight: toNumber(e.target.value) })} />
-              <Input label="Reps" type="number" min={0} inputMode="numeric" value={ex.reps} onChange={e => updateRow(ex.id, { reps: toNumber(e.target.value) })} />
-              <Input label="Sets" type="number" min={0} inputMode="numeric" value={ex.sets} onChange={e => updateRow(ex.id, { sets: toNumber(e.target.value) })} />
+              <Input label="Weight (kg)" type="number" min={0} inputMode="decimal" value={ex.weight} onChange={(e) => updateRow(ex.id, { weight: toNumber(e.target.value) })} />
+              <Input label="Reps" type="number" min={0} inputMode="numeric" value={ex.reps} onChange={(e) => updateRow(ex.id, { reps: toNumber(e.target.value) })} />
+              
               <div className="flex justify-end sm:justify-start">
                 <GhostButton onClick={() => removeRow(ex.id)}>Remove</GhostButton>
               </div>
@@ -421,7 +408,11 @@ function AddEditWorkout({ types, lastWorkout, existing = null, onCancel, onSave 
 
       <SectionCard>
         <h2 className="text-lg font-medium mb-2">Last Workout</h2>
-        {lastWorkout ? <WorkoutSummary workout={lastWorkout} types={types} onEdit={() => {}} /> : <p className="text-slate-300">No previous workout to show.</p>}
+        {lastWorkout ? (
+          <WorkoutSummary workout={lastWorkout} types={types} onEdit={() => {}} />
+        ) : (
+          <p className="text-slate-300">No previous workout to show.</p>
+        )}
       </SectionCard>
     </div>
   );
@@ -433,22 +424,38 @@ function WorkoutsTable({ workouts, types, onEdit, onDelete }) {
   const [sort, setSort] = useState("date_desc");
 
   const rows = useMemo(() => {
-    const typed = workouts.map(w => ({
+    const typed = workouts.map((w) => ({
       ...w,
-      totalVolume: w.exercises.reduce((acc, e) => acc + e.weight * e.reps * e.sets, 0),
-      exercisesNamed: w.exercises.map(e => types.find(t => t.id === e.typeId)?.name || "(deleted)"),
+      totalVolume: w.exercises.reduce((acc, e) => acc + e.weight * e.reps, 0),
+      exercisesNamed: w.exercises.map((e) => types.find((t) => t.id === e.typeId)?.name || "(deleted)"),
     }));
+
     const filtered = query
-      ? typed.filter(w => [new Date(w.date).toLocaleDateString(), w.notes || "", ...w.exercisesNamed].join(" ").toLowerCase().includes(query.toLowerCase()))
+      ? typed.filter((w) =>
+          [
+            new Date(w.date).toLocaleDateString(),
+            w.notes || "",
+            ...w.exercisesNamed,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(query.toLowerCase())
+        )
       : typed;
+
     const sorted = filtered.sort((a, b) => {
       switch (sort) {
-        case "date_asc": return new Date(a.date) - new Date(b.date);
-        case "volume_desc": return b.totalVolume - a.totalVolume;
-        case "volume_asc": return a.totalVolume - b.totalVolume;
-        default: return new Date(b.date) - new Date(a.date);
+        case "date_asc":
+          return new Date(a.date) - new Date(b.date);
+        case "volume_desc":
+          return b.totalVolume - a.totalVolume;
+        case "volume_asc":
+          return a.totalVolume - b.totalVolume;
+        default:
+          return new Date(b.date) - new Date(a.date);
       }
     });
+
     return sorted;
   }, [workouts, types, query, sort]);
 
@@ -467,8 +474,8 @@ function WorkoutsTable({ workouts, types, onEdit, onDelete }) {
           <input
             placeholder="Search by date, note, or exercise…"
             value={query}
-            onChange={e => setQuery(e.target.value)}
-            className="w-full px-3 py-3 rounded-2xl bg-slate-800 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
       </SectionCard>
@@ -485,14 +492,14 @@ function WorkoutsTable({ workouts, types, onEdit, onDelete }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
-              {rows.map(w => (
+              {rows.map((w) => (
                 <tr key={w.id} className="align-top">
                   <td className="py-3 pr-4 whitespace-nowrap">{new Date(w.date).toLocaleString()}</td>
                   <td className="py-3 pr-4">
                     <ul className="list-disc ml-5 space-y-1">
-                      {w.exercises.map(e => (
+                      {w.exercises.map((e) => (
                         <li key={e.id}>
-                          {(types.find(t => t.id === e.typeId)?.name || "(deleted)")}: {e.sets}×{e.reps} @ {e.weight} kg
+                          {(types.find((t) => t.id === e.typeId)?.name || "(deleted)")}: {e.reps} reps @ {e.weight} kg
                         </li>
                       ))}
                     </ul>
@@ -526,7 +533,8 @@ function ManageTypes({ types, onAdd, onUpdate, onDelete, onBack }) {
   function add() {
     if (!name.trim()) return;
     onAdd({ id: uid(), name: name.trim(), muscleGroup: group.trim() });
-    setName(""); setGroup("");
+    setName("");
+    setGroup("");
   }
 
   return (
@@ -540,8 +548,8 @@ function ManageTypes({ types, onAdd, onUpdate, onDelete, onBack }) {
 
       <SectionCard>
         <div className="grid sm:grid-cols-3 gap-3">
-          <Input label="Name" value={name} onChange={e => setName(e.target.value)} placeholder="Bench Press" />
-          <Input label="Muscle Group (optional)" value={group} onChange={e => setGroup(e.target.value)} placeholder="Chest" />
+          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Bench Press" />
+          <Input label="Muscle Group (optional)" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="Chest" />
           <div className="flex items-end"><PrimaryButton onClick={add}>Add Type</PrimaryButton></div>
         </div>
       </SectionCard>
@@ -549,25 +557,32 @@ function ManageTypes({ types, onAdd, onUpdate, onDelete, onBack }) {
       <SectionCard>
         <h2 className="text-lg font-medium mb-3">Your Types</h2>
         <div className="grid gap-2">
-          {types.map(t => <TypeRow key={t.id} t={t} onUpdate={onUpdate} onDelete={onDelete} />)}
+          {types.map((t) => (
+            <TypeRow key={t.id} t={t} onUpdate={onUpdate} onDelete={onDelete} />
+          ))}
           {!types.length && <p className="text-slate-300">No types yet.</p>}
         </div>
       </SectionCard>
     </div>
   );
 }
+
 function TypeRow({ t, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(t.name);
   const [group, setGroup] = useState(t.muscleGroup || "");
-  function save() { onUpdate({ ...t, name: name.trim(), muscleGroup: group.trim() }); setEditing(false); }
+
+  function save() {
+    onUpdate({ ...t, name: name.trim(), muscleGroup: group.trim() });
+    setEditing(false);
+  }
 
   return (
     <div className="grid sm:grid-cols-5 gap-2 items-center bg-slate-800/60 border border-slate-700 rounded-xl p-3">
       {editing ? (
         <>
-          <Input label="Name" value={name} onChange={e => setName(e.target.value)} />
-          <Input label="Group" value={group} onChange={e => setGroup(e.target.value)} />
+          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input label="Group" value={group} onChange={(e) => setGroup(e.target.value)} />
           <div className="sm:col-span-2" />
           <div className="flex gap-2 justify-end">
             <PrimaryButton onClick={save}>Save</PrimaryButton>
@@ -593,8 +608,8 @@ function TypeRow({ t, onUpdate, onDelete }) {
 
 // ------------- Dashboard -------------
 function Dashboard({ workouts, types, onBack }) {
-  const perDay   = useMemo(() => summarizeWorkouts(workouts), [workouts]);
-  const perType  = useMemo(() => perTypeVolume(workouts, types), [workouts, types]);
+  const perDay = useMemo(() => summarizeWorkouts(workouts), [workouts]);
+  const perType = useMemo(() => perTypeVolume(workouts, types), [workouts, types]);
   const prSeries = useMemo(() => prEstimateSeries(workouts, types), [workouts, types]);
 
   return (
@@ -612,12 +627,12 @@ function Dashboard({ workouts, types, onBack }) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={perDay} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#cbd5e1' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#cbd5e1' }} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0' }} />
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="volume" name="Volume (kg)" fill="#38bdf8" />
+                <Bar dataKey="volume" name="Volume (kg)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -628,12 +643,12 @@ function Dashboard({ workouts, types, onBack }) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={perType} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#cbd5e1' }} interval={0} angle={-20} height={60} />
-                <YAxis tick={{ fontSize: 12, fill: '#cbd5e1' }} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0' }} />
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-20} height={60} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="volume" name="Total Volume (kg)" fill="#22c55e" />
+                <Bar dataKey="volume" name="Total Volume (kg)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -645,13 +660,13 @@ function Dashboard({ workouts, types, onBack }) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={prSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#cbd5e1' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#cbd5e1' }} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0' }} />
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
                 <Legend />
                 {Object.keys(sampleLiftKeys(types)).map((key) => (
-                  <Line key={key} type="monotone" dataKey={key} name={key} dot={false} stroke={lineColorFor(key)} strokeWidth={2} />
+                  <Line key={key} type="monotone" dataKey={key} name={key} dot={false} />
                 ))}
               </LineChart>
             </ResponsiveContainer>
@@ -663,12 +678,12 @@ function Dashboard({ workouts, types, onBack }) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={sessionsPerWeek(workouts)} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="week" tick={{ fontSize: 12, fill: '#cbd5e1' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#cbd5e1' }} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', color: '#e2e8f0' }} />
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="week" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="sessions" name="Sessions" fill="#f59e0b" />
+                <Bar dataKey="sessions" name="Sessions" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -679,44 +694,40 @@ function Dashboard({ workouts, types, onBack }) {
 }
 
 // ------------------ Data helpers ------------------
-function lineColorFor(name) {
-  const map = {
-    'Bench Press': '#38bdf8',
-    'Squat': '#22c55e',
-    'Deadlift': '#ef4444',
-    'Overhead Press': '#f59e0b',
-  };
-  return map[name] || '#a78bfa';
-}
 function summarizeWorkouts(workouts) {
   const map = new Map();
   for (const w of workouts) {
     const d = new Date(w.date);
     const key = d.toLocaleDateString();
-    const vol = w.exercises.reduce((acc, e) => acc + e.weight * e.reps * e.sets, 0);
+    const vol = w.exercises.reduce((acc, e) => acc + e.weight * e.reps, 0);
     map.set(key, (map.get(key) || 0) + vol);
   }
   return Array.from(map, ([date, volume]) => ({ date, volume })).sort((a, b) => new Date(a.date) - new Date(b.date));
 }
+
 function perTypeVolume(workouts, types) {
-  const nameById = Object.fromEntries(types.map(t => [t.id, t.name]));
+  const nameById = Object.fromEntries(types.map((t) => [t.id, t.name]));
   const map = new Map();
-  for (const w of workouts) for (const e of w.exercises) {
-    const name = nameById[e.typeId] || "(deleted)";
-    map.set(name, (map.get(name) || 0) + e.weight * e.reps * e.sets);
+  for (const w of workouts) {
+    for (const e of w.exercises) {
+      const name = nameById[e.typeId] || "(deleted)";
+      map.set(name, (map.get(name) || 0) + e.weight * e.reps);
+    }
   }
   return Array.from(map, ([name, volume]) => ({ name, volume })).sort((a, b) => b.volume - a.volume).slice(0, 12);
 }
+
 function prEstimateSeries(workouts, types) {
-  const keyNames = sampleLiftKeys(types);
+  // Compute session-best estimated 1RM per chosen key lifts
+  const keyNames = sampleLiftKeys(types); // { Bench Press: id, Squat: id, Deadlift: id, Overhead Press: id? }
   const rows = [];
-  const byDate = [...workouts].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const byDate = workouts.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
   for (const w of byDate) {
     const row = { date: new Date(w.date).toLocaleDateString() };
     for (const [name, id] of Object.entries(keyNames)) {
       const best = w.exercises
-        .filter(e => e.typeId === id)
-        .map(e => e.weight * (1 + e.reps / 30))
+        .filter((e) => e.typeId === id)
+        .map((e) => e.weight * (1 + e.reps / 30)) // Epley estimate
         .reduce((m, v) => (v > m ? v : m), 0);
       if (best) row[name] = Math.round(best);
     }
@@ -724,7 +735,10 @@ function prEstimateSeries(workouts, types) {
   }
   return rows;
 }
+
 function sampleLiftKeys(types) {
+  // Try to find typical compound lifts by fuzzy name
+  const want = ["Bench", "Squat", "Deadlift", "Overhead", "Press"];
   const picks = {};
   for (const t of types) {
     const n = t.name.toLowerCase();
@@ -733,10 +747,12 @@ function sampleLiftKeys(types) {
     if (!picks["Deadlift"] && n.includes("dead")) picks["Deadlift"] = t.id;
     if (!picks["Overhead Press"] && (n.includes("overhead") || (n.includes("shoulder") && n.includes("press")))) picks["Overhead Press"] = t.id;
   }
+  // Return mapping name->id but only names (keys) for chart lines
   const namesOnly = {};
   for (const [k, v] of Object.entries(picks)) namesOnly[k] = v;
   return namesOnly;
 }
+
 function sessionsPerWeek(workouts) {
   const map = new Map();
   for (const w of workouts) {
@@ -753,81 +769,59 @@ function sessionsPerWeek(workouts) {
 // ------------------ Hooks & utils ------------------
 function useLocalStorage(key, initialValue) {
   const [state, setState] = useState(() => {
-    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initialValue; }
-    catch { return initialValue; }
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : initialValue;
+    } catch {
+      return initialValue;
+    }
   });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {}
+  }, [key, state]);
   return [state, setState];
 }
-function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
-function toNumber(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
-function blankExercise(types) { return { id: uid(), typeId: types[0]?.id || "", weight: 0, reps: 0, sets: 0 }; }
+
+function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function toNumber(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function blankExercise(types) {
+  return { id: uid(), typeId: types[0]?.id || "", weight: 0, reps: 0 };
+}
+
 function isoLocal(iso) {
-  const d = new Date(iso); const z = n => String(n).padStart(2, "0");
+  // Convert ISO to YYYY-MM-DDTHH:mm in local time for input[type=datetime-local]
+  const d = new Date(iso);
+  const z = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
 }
 
-// ------------------ Settings (Cloud Sync) ------------------
-function Settings({ onBack, workouts, workoutTypes, setWorkouts, setWorkoutTypes }) {
-  const [auth, setAuth] = useState({ ok: false, login: "" });
-  useEffect(() => { checkAuth().then(setAuth); }, []);
+// ------------------ Types (JSDoc) ------------------
+/**
+ * @typedef {{
+ *  id: string,
+ *  name: string,
+ *  muscleGroup?: string,
+ * }} WorkoutType
+ */
 
-  return (
-    <div className="max-w-3xl mx-auto p-4 space-y-4">
-      <SectionCard>
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Settings</h1>
-          <SecondaryButton onClick={onBack}>Back</SecondaryButton>
-        </div>
-      </SectionCard>
+/**
+ * @typedef {Object} Workout
+ * @property {string} id
+ * @property {string} date // ISO
+ * @property {string=} notes
+ * @property {{ id: string, typeId: string, weight: number, reps: number,  }[]} exercises
+ */
 
-      <SectionCard>
-        {!auth.ok ? (
-          <PrimaryButton onClick={() => (window.location.href = `${API}/api/login`)}>
-            Sign in with GitHub
-          </PrimaryButton>
-        ) : (
-          <>
-            <p className="text-slate-300 mb-3">Signed in as <span className="font-semibold">{auth.login}</span></p>
-            <div className="flex gap-2">
-              <SecondaryButton onClick={() => cloudLoad(setWorkouts, setWorkoutTypes)}>Load from Cloud</SecondaryButton>
-              <PrimaryButton onClick={() => cloudSync(workouts, workoutTypes)}>Sync to Cloud</PrimaryButton>
-            </div>
-          </>
-        )}
-      </SectionCard>
-    </div>
-  );
-}
+/** @typedef {"home"|"add"|"edit"|"list"|"types"|"dashboard"} Route */
 
-// Cloud helpers
-async function checkAuth() {
-  try {
-    const res = await fetch(`${API}/api/me`, { credentials: "include" });
-    return res.ok ? res.json() : { ok: false };
-  } catch { return { ok: false }; }
-}
-async function cloudLoad(setWorkouts, setTypes) {
-  const safe = async (file) => {
-    const r = await fetch(`${API}/api/data?file=${file}`, { credentials: "include" });
-    const j = await r.json();
-    return j.ok ? JSON.parse(j.content || "[]") : [];
-  };
-  const [types, workouts] = await Promise.all([safe("types.json"), safe("workouts.json")]);
-  setTypes(types); setWorkouts(workouts);
-}
-async function cloudSync(workouts, types) {
-  const put = (file, content) => fetch(`${API}/api/data?file=${file}`, {
-    method: "PUT",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content })
-  }).then(r => r.json());
-  await put("types.json", JSON.stringify(types, null, 2));
-  await put("workouts.json", JSON.stringify(workouts, null, 2));
-  alert("Synced to Cloud ✅");
-}
-
-// ---- Mount the app into #root ----
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(React.createElement(App));
